@@ -1,8 +1,11 @@
-from crewai import Agent
-from langchain.llms import OpenAI
-from langchain.chat_models import ChatOpenAI
+import os
 
-llm = ChatOpenAI(model='gpt-4.1-nano')
+from crewai import Agent
+from langchain.chat_models import ChatOpenAI
+api_key = os.getenv("OPENAI_API_KEY")
+
+
+llm = ChatOpenAI(model='gpt-4.1-nano', openai_api_key=api_key)
 
 class GameAgents:
 
