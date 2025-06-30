@@ -1,5 +1,8 @@
 from crewai import Agent
 from langchain.llms import OpenAI
+from langchain.chat_models import ChatOpenAI
+
+llm = ChatOpenAI(model='gpt-4.1-nano')
 
 class GameAgents:
 
@@ -9,6 +12,7 @@ class GameAgents:
             goal="Answer game rule queries and provide game setup information",
             backstory="Knows the rulebook of Monopoly by heart. Provides game setup instructions and rule clarifications.",
             verbose=True,
+            llm=llm,
         )
 
     def player_status_tracker(self):
@@ -17,6 +21,7 @@ class GameAgents:
             goal="Track and recall player data, including positions, money, and assets",
             backstory="Maintains accurate player metadata and updates after each turn.",
             verbose=True,
+            llm=llm,
         )
 
     def game_state_manager(self):
@@ -25,6 +30,7 @@ class GameAgents:
             goal="Track the overall state of the Monopoly game, including turn order and board state",
             backstory="Keeps track of where pieces are on the board and manages phase transitions.",
             verbose=True,
+            llm=llm,
         )
 
     def validator(self):
@@ -33,6 +39,7 @@ class GameAgents:
             goal="Ensure actions and responses align with game rules and state",
             backstory="Verifies consistency between inputs, game state, and rules. Handles error recovery.",
             verbose=True,
+            llm=llm,
         )
 
     def listener(self):
@@ -41,6 +48,7 @@ class GameAgents:
             goal="Convert player speech into structured game actions or questions",
             backstory="Listens to players' speech and translates it into actionable input for agents.",
             verbose=True,
+            llm=llm,
         )
 
     def explainer(self):
@@ -49,6 +57,7 @@ class GameAgents:
             goal="Translate game rule answers into digestible, easy instructions",
             backstory="Explains game concepts to players clearly, with educational intent but minimal overload.",
             verbose=True,
+            llm=llm,
         )
 
     def first_time_helper(self):
@@ -57,6 +66,7 @@ class GameAgents:
             goal="Guide players through a dummy game of Monopoly to teach game flow and rules",
             backstory="Acts like a practice round coach for new players learning Monopoly.",
             verbose=True,
+            llm=llm,
         )
 
     def game_master(self):
@@ -65,4 +75,5 @@ class GameAgents:
             goal="Conduct the Monopoly game, prompting players and resolving actions",
             backstory="Coordinates the game, keeping play flowing and delegating clarifications to other agents.",
             verbose=True,
+            llm=llm,
         )
