@@ -1,78 +1,85 @@
-from crewai import Crew
 from board_game_helper.agents import GameAgents
-from board_game_helper.tasks import GameTasks
+from board_game_helper.conversation_tracker import ConversationContext
 
+from crewai import Crew, Task
+from textwrap import dedent
 from dotenv import load_dotenv
+
 load_dotenv()
 
 class GameCrew:
+    def __init__(self, mode='game'):
+        self.mode = mode
+        self.context = ConversationContext()
+        self.agents = GameAgents()
 
-    def __init__(self, game_mode='tutorial', player_input=None):
-        self.game_mode = game_mode
-        self.player_input = player_input or ""
+        # Create core agents
+        self.listener = self.agents.listener()
+        self.rules_expert = self.agents.rules_expert()
+        self.state_tracker = self.agents.game_state_manager()
+        self.status_tracker = self.agents.player_status_tracker()
+        self.validator = self.agents.validator()
+        self.explainer = self.agents.explainer()
+        self.game_master = self.agents.game_master()
+
+        if mode == 'tutorial':
+            self.mode_agent = self.agents.first_time_helper()
+        else:
+            self.mode_agent = self.game_master
 
     def run(self):
-        agents = GameAgents()
-        tasks = GameTasks()
+        print("\n🎲 Welcome to the Board Game Helper (Monopoly Edition)!")
+        print("Type 'exit' to end the session.\n")
 
-        # Instantiate agents
-        rules_agent = agents.rules_expert()
-        player_tracker = agents.player_status_tracker()
-        state_manager = agents.game_state_manager()
-        validator = agents.validator()
-        listener = agents.listener()
-        explainer = agents.explainer()
-        tutorial_guide = agents.first_time_helper()
-        master = agents.game_master()
+        while True:
+            player_input = input("You: ")
+            if player_input.lower() == 'exit':
+                print("\n👋 Thanks for playing! See you next time.")
+                break
 
-        if self.game_mode == 'tutorial':
-            task = tasks.run_tutorial(tutorial_guide)
-            crew = Crew(
-                agents=[tutorial_guide, rules_agent, explainer],
-                tasks=[task],
-                verbose=True
+            self.context.add_turn("player", player_input)
+
+            parsed_action = self.listener.run(
+                input=player_input
             )
+            self.context.add_turn("listener", parsed_action)
 
-        elif self.game_mode == 'game':
-            task = tasks.run_game(master)
-            crew = Crew(
-                agents=[master, rules_agent, player_tracker, state_manager, explainer],
-                tasks=[task],
-                verbose=True
-            )
+            # Delegate to appropriate agent based on context
+            if 'rule' in parsed_action.lower():
+                rule_response = self.rules_expert.run(input=parsed_action)
+                self.context.add_turn("rules_expert", rule_response)
 
-        elif self.game_mode == 'rule_question':
-            parse_task = tasks.parse_player_input(listener, self.player_input)
-            rule_task = tasks.check_rules(rules_agent, self.player_input)
-            explain_task = tasks.explain_rules(explainer, "<placeholder for rule_task result>")
+                explanation = self.explainer.run(input=rule_response)
+                self.context.add_turn("explainer", explanation)
+                print(f"🧠 Explainer: {explanation}")
+                continue
 
-            crew = Crew(
-                agents=[listener, rules_agent, explainer],
-                tasks=[parse_task, rule_task, explain_task],
-                verbose=True
-            )
+            if self.context.get_pending_question():
+                answer = parsed_action
+                self.context.add_turn("followup_response", answer)
+                self.context.clear_pending_question()
 
-        else:
-            raise ValueError("Unknown game mode. Choose 'tutorial', 'game', or 'rule_question'.")
+            # Game master runs main logic
+            gm_response = self.mode_agent.run(input=parsed_action)
+            self.context.add_turn("game_master", gm_response)
 
-        result = crew.kickoff()
-        return result
+            # Validate
+            valid = self.validator.run(input=gm_response)
+            self.context.add_turn("validator", valid)
 
+            if "error" in valid.lower():
+                print("🚫 Move invalid. Asking for clarification...")
+                self.context.set_pending_question("Can you clarify or rephrase that?")
+                print("🤖 Game Master: Can you clarify or rephrase that?")
+            else:
+                # Update game state and player status if needed
+                self.state_tracker.run(input=gm_response)
+                self.status_tracker.run(input=gm_response)
+                print(f"🤖 Game Master: {gm_response}")
 
 if __name__ == "__main__":
-    print("## Welcome to Board Game Helper for MONOPOLY")
-    print("-------------------------------------------")
-    mode = input("Choose mode ('tutorial', 'game', 'rule_question'): ").strip()
-
-    if mode == 'rule_question':
-        user_query = input("What rule would you like help with? ")
-        crew = GameCrew(game_mode=mode, player_input=user_query)
-    else:
-        crew = GameCrew(game_mode=mode)
-
-    result = crew.run()
-
-    print("\n\n########################")
-    print("## Session Result")
-    print("########################\n")
-    print(result)
+    mode = input("Choose mode (tutorial/game): ").strip().lower()
+    if mode not in ['tutorial', 'game']:
+        mode = 'game'
+    game_crew = GameCrew(mode=mode)
+    game_crew.run()
