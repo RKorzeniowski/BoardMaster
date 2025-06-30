@@ -3,22 +3,16 @@ from textwrap import dedent
 
 class GameTasks:
 
-    def parse_player_input(self, agent, player_message):
+    def parse_player_input(self, agent, player_message, context=""):
         return Task(
             description=dedent(f"""
-                Interpret this user message and extract the intent, including whether
-                it's a question, game action, or confusion.
+                Interpret the following user message in the context of an ongoing Monopoly game.
+                Consider the previous conversation:
+                {context}
 
-                Output should be structured, e.g.:
-                {{
-                    "intent": "move", 
-                    "details": {{
-                        "action": "roll", 
-                        "current_position": 5
-                    }}
-                }}
+                Extract the player's intent (e.g., move, ask rule, buy property).
 
-                Message: \"{player_message}\"
+                Message: "{player_message}"
             """),
             agent=agent,
             expected_output="Structured game-related command or question from user input."
@@ -30,7 +24,7 @@ class GameTasks:
                 Provide a clear and complete answer to the following rule question,
                 referencing the Monopoly rulebook.
 
-                Question: \"{query}\"
+                Question: "{query}"
             """),
             agent=agent,
             expected_output="Authoritative answer based on official Monopoly rules."
@@ -39,7 +33,7 @@ class GameTasks:
     def track_player_state(self, agent, player_name, updates):
         return Task(
             description=dedent(f"""
-                Update player \"{player_name}\"'s status with the following updates:
+                Update player "{player_name}"'s status with the following updates:
                 {updates}
 
                 Return the updated summary of this player's state.
@@ -54,7 +48,7 @@ class GameTasks:
                 Convert this rule response into an easy-to-understand explanation.
                 Be helpful but concise.
 
-                Rule response: \"{rule_response}\"
+                Rule response: "{rule_response}"
             """),
             agent=agent,
             expected_output="User-friendly, digestible explanation for players."
@@ -87,15 +81,33 @@ class GameTasks:
             expected_output="Guided interactive dummy game walkthrough."
         )
 
-    def run_game(self, agent):
+    def run_game(self, agent, player_names, player_piece):
         return Task(
-            description=dedent("""
-                Assume role of Game Master. Start the game, guide players through each
-                step, manage turns, trigger rule clarifications and player updates
-                via relevant agents.
+            description=dedent(f"""
+                Assume role of Game Master. Start the Monopoly game, set up the board,
+                assign player positions, and explain the first steps.
 
-                Keep flow simple, support users when confused.
+                Prepare the game to begin.
+                
+                Players say that their names are: {player_names}
+                Players say about pieces they picked out of Dog, House and Shoe: {player_piece}.
             """),
             agent=agent,
-            expected_output="Live guided Monopoly game session"
+            expected_output="Initial game state based on players input, setup details" # , and player's first turn.
+        )
+
+    def continue_game(self, agent, player_message, context):
+        return Task(
+            description=dedent(f"""
+                Continue the Monopoly game. Consider this new player input:
+                "{player_message}"
+
+                And the current context:
+                {context}
+
+                Respond as the Game Master, advancing the game state, validating moves,
+                and addressing rule questions if necessary.
+            """),
+            agent=agent,
+            expected_output="Updated game progress, next steps, and player guidance."
         )
