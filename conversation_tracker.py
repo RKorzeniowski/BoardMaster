@@ -29,3 +29,6 @@ class ConversationContext:
 
     def get_full_history(self):
         return self.history
+
+    def summary(self):
+        return "\n".join([f"{turn['speaker'].capitalize()}: {turn['message']}" for turn in self.history])
