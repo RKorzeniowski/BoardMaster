@@ -1,85 +1,157 @@
-from board_game_helper.agents import GameAgents
-from board_game_helper.conversation_tracker import ConversationContext
-
-from crewai import Crew, Task
-from textwrap import dedent
 from dotenv import load_dotenv
-
 load_dotenv()
 
+import speech_recognition as sr
+import pyttsx3
+from crewai import Crew
+from agents import GameAgents
+from tasks import GameTasks
+from conversation_tracker import ConversationContext
+
+SKIP_INITIAL_RULES_SPEECH = False
+
 class GameCrew:
-    def __init__(self, mode='game'):
-        self.mode = mode
+
+    def __init__(self, game_mode='tutorial'):
+        self.game_mode = game_mode
         self.context = ConversationContext()
-        self.agents = GameAgents()
+        self.recognizer = sr.Recognizer()
+        self.tts_engine = pyttsx3.init()
+        self.game_started = False
 
-        # Create core agents
-        self.listener = self.agents.listener()
-        self.rules_expert = self.agents.rules_expert()
-        self.state_tracker = self.agents.game_state_manager()
-        self.status_tracker = self.agents.player_status_tracker()
-        self.validator = self.agents.validator()
-        self.explainer = self.agents.explainer()
-        self.game_master = self.agents.game_master()
+    def speak(self, text):
+        print("AI:", text)
+        self.tts_engine.say(text)
+        self.tts_engine.runAndWait()
 
-        if mode == 'tutorial':
-            self.mode_agent = self.agents.first_time_helper()
-        else:
-            self.mode_agent = self.game_master
+    def listen(self):
+        with sr.Microphone() as source:
+            print("Listening...")
+            audio = self.recognizer.listen(source)
+        try:
+            input_text = self.recognizer.recognize_google(audio)
+            print("You:", input_text)
+            return input_text
+        except sr.UnknownValueError:
+            self.speak("Sorry, I didn't understand that. Please try again.")
+            return self.listen()
+        except sr.RequestError as e:
+            self.speak("ASR service error. Please check your internet connection.")
+            raise e
 
     def run(self):
-        print("\n🎲 Welcome to the Board Game Helper (Monopoly Edition)!")
-        print("Type 'exit' to end the session.\n")
+        agents = GameAgents()
+        tasks = GameTasks()
+
+        rules_agent = agents.rules_expert()
+        player_tracker = agents.player_status_tracker()
+        state_manager = agents.game_state_manager()
+        validator = agents.validator()
+        listener = agents.listener()
+        explainer = agents.explainer()
+        tutorial_guide = agents.first_time_helper()
+        master = agents.game_master()
+
+        if self.game_mode == 'tutorial':
+            task = tasks.run_tutorial(tutorial_guide)
+            crew = Crew(
+                agents=[tutorial_guide, rules_agent, explainer],
+                tasks=[task],
+                verbose=True
+            )
+            result = crew.kickoff()
+            self.speak(result)
+
+        elif self.game_mode == 'rule_question':
+            self.speak("What rule would you like help with?")
+            user_query = self.listen()
+            self.context.add_turn("player", user_query)
+
+            parse_task = tasks.parse_player_input(listener, user_query)
+            rule_task = tasks.check_rules(rules_agent, user_query)
+            explain_task = tasks.explain_rules(explainer, f"<rule info from rule_task>")
+
+            crew = Crew(
+                agents=[listener, rules_agent, explainer],
+                tasks=[parse_task, rule_task, explain_task],
+                verbose=True
+            )
+            result = crew.kickoff()
+            self.speak(result)
+
+        elif self.game_mode == 'game':
+            self._interactive_game_session(master, rules_agent, player_tracker, state_manager, explainer, tasks)
+
+    def _interactive_game_session(self, master, rules_agent, player_tracker, state_manager, explainer, tasks):
+        print("Starting game session. Type 'exit' to end.")
+        self.speak("What are you names players?")
+        player_names = self.listen()
+        self.speak("What pieces do each of you pick out of Dog, House and Shoe?")
+        player_piece = self.listen()
+        self.context.add_turn("player", f"Players say that their names are {player_names} and that regarding pieces {player_piece}")
 
         while True:
-            player_input = input("You: ")
-            if player_input.lower() == 'exit':
-                print("\n👋 Thanks for playing! See you next time.")
-                break
+            if not self.game_started:
+                game_task = tasks.run_game(master, player_names, player_piece)
+                crew = Crew(
+                    agents=[master, rules_agent, player_tracker, state_manager, explainer],
+                    tasks=[game_task],
+                    verbose=True
+                )
+                result = crew.kickoff()
+                self.game_started = True
 
-            self.context.add_turn("player", player_input)
-
-            parsed_action = self.listener.run(
-                input=player_input
-            )
-            self.context.add_turn("listener", parsed_action)
-
-            # Delegate to appropriate agent based on context
-            if 'rule' in parsed_action.lower():
-                rule_response = self.rules_expert.run(input=parsed_action)
-                self.context.add_turn("rules_expert", rule_response)
-
-                explanation = self.explainer.run(input=rule_response)
-                self.context.add_turn("explainer", explanation)
-                print(f"🧠 Explainer: {explanation}")
-                continue
-
-            if self.context.get_pending_question():
-                answer = parsed_action
-                self.context.add_turn("followup_response", answer)
-                self.context.clear_pending_question()
-
-            # Game master runs main logic
-            gm_response = self.mode_agent.run(input=parsed_action)
-            self.context.add_turn("game_master", gm_response)
-
-            # Validate
-            valid = self.validator.run(input=gm_response)
-            self.context.add_turn("validator", valid)
-
-            if "error" in valid.lower():
-                print("🚫 Move invalid. Asking for clarification...")
-                self.context.set_pending_question("Can you clarify or rephrase that?")
-                print("🤖 Game Master: Can you clarify or rephrase that?")
+                if SKIP_INITIAL_RULES_SPEECH:
+                    print("\nGame Master:", result)
+                else:
+                    self.speak(result.raw.replace("\n", " "))
             else:
-                # Update game state and player status if needed
-                self.state_tracker.run(input=gm_response)
-                self.status_tracker.run(input=gm_response)
-                print(f"🤖 Game Master: {gm_response}")
+                print("Waiting for playing input")
+                player_input = self.listen()
+                print(f"Player turn input {player_input}")
+                if player_input.lower() == 'exit':
+                    break
+
+                self.context.add_turn("player", player_input)
+
+                continue_task = tasks.continue_game(master, self.context.summary(), player_input)
+                crew = Crew(
+                    agents=[master, rules_agent, player_tracker, state_manager, explainer],
+                    tasks=[continue_task],
+                    verbose=True
+                )
+                result = crew.kickoff()
+                print("starting to generate LLM speech")
+                self.speak(result.raw.replace("\n", " "))
+                print("done to generate LLM speech")
+
+            self.context.add_turn("agent", result)
 
 if __name__ == "__main__":
-    mode = input("Choose mode (tutorial/game): ").strip().lower()
-    if mode not in ['tutorial', 'game']:
-        mode = 'game'
-    game_crew = GameCrew(mode=mode)
-    game_crew.run()
+    engine = pyttsx3.init()
+    engine.say("Welcome to the Board Master. Today we will play Monopoly. Please pick tutorial, game, or rule question mode.")
+    engine.runAndWait()
+
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("Listening for mode selection...")
+        audio = recognizer.listen(source)
+
+    try:
+        mode_input = recognizer.recognize_google(audio).lower()
+        print(f"Heard mode_input: {mode_input} is invalid option. It has to be either tutorial, game, or rule question")
+    except sr.UnknownValueError:
+        mode_input = "game"
+        engine.say("Sorry, I didn't catch that. Starting game mode.")
+        engine.runAndWait()
+
+    valid_mode = any([mode_input == mode for mode in ['tutorial', 'game', 'rule question']])
+
+    if not valid_mode:
+        mode_input = "game"
+        engine.say(f"Sorry, you said {mode_input} but only options available are tutorial, game, or rule question. "
+                   f"Falling back to the game mode.")
+        engine.runAndWait()
+
+    helper = GameCrew(game_mode=mode_input)
+    helper.run()
