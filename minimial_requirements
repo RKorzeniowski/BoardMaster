@@ -1,0 +1,7 @@
+crewai
+langchain
+langchain_community
+python-dotenv
+speech_recognition
+pyttsx3
+PyAudio
