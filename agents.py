@@ -2,10 +2,13 @@ import os
 
 from crewai import Agent
 from langchain.chat_models import ChatOpenAI
+from tools.RAG import MonopolyKnowledgeTool
+
 api_key = os.getenv("OPENAI_API_KEY")
-
-
 llm = ChatOpenAI(model='gpt-4.1-nano', openai_api_key=api_key)
+
+knowledge_tool = MonopolyKnowledgeTool()
+
 
 class GameAgents:
 
@@ -15,6 +18,7 @@ class GameAgents:
             goal="Answer game rule queries and provide game setup information",
             backstory="Knows the rulebook of Monopoly by heart. Provides game setup instructions and rule clarifications.",
             verbose=True,
+            tools=[knowledge_tool.lookup],
             llm=llm,
         )
 
