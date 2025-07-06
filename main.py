@@ -80,16 +80,16 @@ class GameCrew:
             self.speak(result)
 
         elif self.game_mode == 'game':
-            self._interactive_game_session(master, rules_agent, player_tracker, state_manager, explainer, tasks)
+            self._interactive_game_session(master, rules_agent, player_tracker, state_manager, explainer, validator, tasks)
 
-    def _interactive_game_session(self, master, rules_agent, player_tracker, state_manager, explainer, tasks):
+    def _interactive_game_session(self, master, rules_agent, player_tracker, state_manager, explainer, validator, tasks):
         print("Starting game session. Type 'exit' to end.")
         self.speak("What are you names players?")
         player_names = self.listen()
         self.speak("What pieces do each of you pick out of Dog, House and Shoe?")
         player_piece = self.listen()
         self.context.add_turn("player", f"Players say that their names are {player_names} and that regarding pieces {player_piece}")
-
+    
         while True:
             if not self.game_started:
                 game_task = tasks.run_game(master, player_names, player_piece)
@@ -100,7 +100,7 @@ class GameCrew:
                 )
                 result = crew.kickoff()
                 self.game_started = True
-
+    
                 if SKIP_INITIAL_RULES_SPEECH:
                     print("\nGame Master:", result)
                 else:
@@ -111,21 +111,39 @@ class GameCrew:
                 print(f"Player turn input {player_input}")
                 if player_input.lower() == 'exit':
                     break
-
+    
                 self.context.add_turn("player", player_input)
-
-                continue_task = tasks.continue_game(master, self.context.summary(), player_input)
+    
+                continue_task = tasks.continue_game(master, player_input, self.context.summary())
+                validate_task = tasks.validate_action(validator, f"{player_input}\n\nCurrent game context:\n{self.context.summary()}")
+    
                 crew = Crew(
-                    agents=[master, rules_agent, player_tracker, state_manager, explainer],
-                    tasks=[continue_task],
+                    agents=[master, rules_agent, player_tracker, state_manager, explainer, validator],
+                    tasks=[continue_task, validate_task],
                     verbose=True
                 )
                 result = crew.kickoff()
+    
+                validation_feedback = str(result[1].raw).lower()
+    
+                if "invalid" in validation_feedback or "not allowed" in validation_feedback:
+                    # Regenerate response using validator feedback as context
+                    correction_context = f"The previous output was invalid: {validation_feedback}. Consider this when continuing."
+                    self.context.add_turn("agent", f"Invalid output: {validation_feedback}")
+                    retry_task = tasks.continue_game(master, player_input, self.context.summary() + "\n" + correction_context)
+    
+                    retry_crew = Crew(
+                        agents=[master, rules_agent, player_tracker, state_manager, explainer],
+                        tasks=[retry_task],
+                        verbose=True
+                    )
+                    result = retry_crew.kickoff()
+    
+                self.context.add_turn("agent", result)
                 print("starting to generate LLM speech")
                 self.speak(result.raw.replace("\n", " "))
                 print("done to generate LLM speech")
 
-            self.context.add_turn("agent", result)
 
 if __name__ == "__main__":
     engine = pyttsx3.init()
