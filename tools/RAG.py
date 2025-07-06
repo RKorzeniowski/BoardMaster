@@ -4,7 +4,7 @@ from langchain.tools import tool
 class MonopolyKnowledgeTool:
 
     def __init__(self):
-        with open('monopoly_data.json', 'r') as f:
+        with open('tools/monopoly_data.json', 'r') as f:
             self.data = json.load(f)
 
     @tool("Lookup Monopoly Info")
