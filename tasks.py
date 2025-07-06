@@ -62,7 +62,9 @@ class GameTasks:
 
                 Action context: {action_context}
 
-                Check for correctness and legality. If invalid, say why.
+                Check for correctness and legality. If invalid, directly state 'invalid' or 'not allowed'. Never use those two phrases when input is valid. 
+                In case of invalid input state why it is invalid in a way that would be helpful for an LLM agent to avoid making the same mistake again and 
+                generate correct output.
             """),
             agent=agent,
             expected_output="Validation result and potential correction path if invalid."
