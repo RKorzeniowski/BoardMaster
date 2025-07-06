@@ -1,0 +1,24 @@
+{
+  "spaces": [
+    {"name": "Go", "type": "start"},
+    {"name": "Boardwalk", "type": "property"},
+    {"name": "Chance", "type": "chance"},
+    {"name": "Income Tax", "type": "tax"},
+    {"name": "Community Chest", "type": "community_chest"}
+  ],
+  "chance_cards": [
+    "Advance to Go",
+    "Bank pays you dividend of $50",
+    "Go directly to Jail"
+  ],
+  "community_chest_cards": [
+    "Doctor's fees – Pay $50",
+    "From sale of stock you get $50",
+    "Get Out of Jail Free"
+  ],
+  "rules": [
+    "If you land directly on 'Go', you collect $200.",
+    "You can buy a property you land on if it’s not owned.",
+    "Pay $50 to get out of jail on your next turn if you don’t roll doubles."
+  ]
+}
