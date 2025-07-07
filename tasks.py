@@ -51,7 +51,7 @@ class GameTasks:
                 Do not make any moves for the players.
             """),
             agent=agent,
-            expected_output="Initial game state based on players input, setup details. Do not make any moves for the players." # Do not delegate tasks here. , and player's first turn.
+            expected_output="Initial game state based on players input, setup details. Do not make any moves for the players."
         )
 
     def continue_game(self, agent, player_message, context):
