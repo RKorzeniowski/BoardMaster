@@ -5,3 +5,6 @@ python-dotenv
 speech_recognition
 pyttsx3
 PyAudio
+wikipedia-api
+numpy
+sentence_transformers
