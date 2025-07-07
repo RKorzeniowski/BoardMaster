@@ -9,7 +9,8 @@ from tasks import GameTasks
 from conversation_tracker import ConversationContext
 
 TEXT_MODE = True
-DUMMY_INPUTS = False
+DUMMY_INPUTS = True
+SOLO_MODE = True
 
 class GameCrew:
 
@@ -39,6 +40,83 @@ class GameCrew:
             self.speak("ASR service error. Please check your internet connection.")
             raise e
 
+    def run_solo(self):
+        """
+        run monopoly game with only game master agent
+        """
+        agents = GameAgents()
+        tasks = GameTasks()
+
+        master = agents.game_master()
+
+        self._interactive_solo_game_session(master, tasks)
+
+    def _interactive_solo_game_session(self, master, tasks):
+        print("Starting game session. Type 'exit' to end.")
+
+        if TEXT_MODE:
+            if DUMMY_INPUTS:
+                player_names = "Tom and Anna"
+            else:
+                player_names = input("What are your names players?:\n")
+        else:
+            self.speak("What are your names players?")
+            player_names = self.listen()
+
+        if TEXT_MODE:
+            if DUMMY_INPUTS:
+                player_piece = "Tom picked the Dog piece and Anna picked the Shoe piece"
+            else:
+                player_piece = input("What pieces do each of you pick out of Dog, House and Shoe?:\n")
+        else:
+            self.speak("What pieces do each of you pick out of Dog, House and Shoe?")
+            player_piece = self.listen()
+        self.context.add_turn("player", f"Players say that their names are {player_names} and that regarding pieces {player_piece}")
+
+        while True:
+            if not self.game_started:
+                game_task = tasks.run_game(master, player_names, player_piece)
+                crew = Crew(
+                    agents=[master],
+                    tasks=[game_task],
+                    verbose=True
+                )
+                result = crew.kickoff()
+                self.game_started = True
+
+                if TEXT_MODE:
+                    print("\nGame Master:", result)
+                else:
+                    self.speak(result.raw.replace("\n", " "))
+            else:
+                if TEXT_MODE:
+                    player_input = input("Waiting for playing input:\n")
+                else:
+                    print("Waiting for playing input:")
+                    player_input = self.listen()
+
+                print(f"Player turn input {player_input}")
+                if player_input.lower() == 'exit':
+                    break
+
+                self.context.add_turn("player", player_input)
+
+                continue_task = tasks.continue_game(master, player_input, self.context.summary())
+
+                crew = Crew(
+                    agents=[master],
+                    tasks=[continue_task],
+                    verbose=True
+                )
+                result = crew.kickoff()
+
+                agent_text_output = result.raw.replace("\n", " ")
+                self.context.add_turn("game_master_agent", agent_text_output)
+                if TEXT_MODE:
+                    print(agent_text_output)
+                else:
+                    self.speak(agent_text_output)
+
     def run(self):
         agents = GameAgents()
         tasks = GameTasks()
@@ -57,9 +135,9 @@ class GameCrew:
             if DUMMY_INPUTS:
                 player_names = "Tom and Anna"
             else:
-                player_names = input("What are you names players?:\n")
+                player_names = input("What are your names players?:\n")
         else:
-            self.speak("What are you names players?")
+            self.speak("What are your names players?")
             player_names = self.listen()
 
         if TEXT_MODE:
@@ -152,4 +230,8 @@ if __name__ == "__main__":
         engine.runAndWait()
 
     helper = GameCrew()
-    helper.run()
+
+    if SOLO_MODE:
+        helper.run_solo()
+    else:
+        helper.run()
