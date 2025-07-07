@@ -2,41 +2,38 @@ import os
 
 from crewai import Agent
 from langchain.chat_models import ChatOpenAI
-from tools.RAG import MonopolyKnowledgeTool
+from tools.wiki_search import WikiSearchTool
+
 
 api_key = os.getenv("OPENAI_API_KEY")
 llm = ChatOpenAI(model='gpt-4.1-nano', openai_api_key=api_key)
 
-knowledge_tool = MonopolyKnowledgeTool()
-
-
 class GameAgents:
 
-    def rules_expert(self):
+    def summarizer_agent(self):
         return Agent(
-            role="Rules Expert",
-            goal="Answer game rule queries and provide game setup information",
-            backstory="Knows the rulebook of Monopoly by heart. Provides game setup instructions and rule clarifications.",
-            verbose=True,
-            tools=[knowledge_tool.lookup],
-            llm=llm,
-        )
-
-    def player_status_tracker(self):
-        return Agent(
-            role="Player Status Tracker",
-            goal="Track and recall player data, including positions, money, and assets",
-            backstory="Maintains accurate player metadata and updates after each turn.",
+            role="Conversation Summarizer",
+            goal="Condense the last few turns of the Monopoly game into a short, fact-rich summary that maintains all key game state details.",
+            backstory=(
+                "This agent specializes in memory compression. It observes the last turns of player and system interaction "
+                "and rewrites them into a minimal summary. Its output helps keep context concise without losing any information "
+                "critical to game logic, rule enforcement, player status, or board position tracking."
+            ),
             verbose=True,
             llm=llm,
+            allow_delegation=False
         )
 
     def game_state_manager(self):
         return Agent(
             role="Game State Manager",
-            goal="Track the overall state of the Monopoly game, including turn order and board state",
-            backstory="Keeps track of where pieces are on the board and manages phase transitions.",
+            goal="Track the overall state of the Monopoly game, all the player data, including positions, money assets as well as turn order, and board state",
+            backstory="Maintains accurate player metadata and updates after each turn. "
+                      "Keeps track of where pieces are on the board and manages phase transitions."
+                      "If asked provides current status of the game. Explicitly states full name of current position of each of the players on the board and all the other "
+                      "relevant medata about the players.",
             verbose=True,
+            allow_delegation=False,
             llm=llm,
         )
 
@@ -46,33 +43,8 @@ class GameAgents:
             goal="Ensure actions and responses align with game rules and state",
             backstory="Verifies consistency between inputs, game state, and rules. Handles error recovery.",
             verbose=True,
-            llm=llm,
-        )
-
-    def listener(self):
-        return Agent(
-            role="Listener and Parser",
-            goal="Convert player speech into structured game actions or questions",
-            backstory="Listens to players' speech and translates it into actionable input for agents.",
-            verbose=True,
-            llm=llm,
-        )
-
-    def explainer(self):
-        return Agent(
-            role="Game Explainer",
-            goal="Translate game rule answers into digestible, easy instructions",
-            backstory="Explains game concepts to players clearly, with educational intent but minimal overload.",
-            verbose=True,
-            llm=llm,
-        )
-
-    def first_time_helper(self):
-        return Agent(
-            role="First-Time Player Helper",
-            goal="Guide players through a dummy game of Monopoly to teach game flow and rules",
-            backstory="Acts like a practice round coach for new players learning Monopoly.",
-            verbose=True,
+            tools=[WikiSearchTool()],
+            allow_delegation=False,
             llm=llm,
         )
 
@@ -80,7 +52,9 @@ class GameAgents:
         return Agent(
             role="Game Master",
             goal="Conduct the Monopoly game, prompting players and resolving actions",
-            backstory="Coordinates the game, keeping play flowing and delegating clarifications to other agents.",
+            backstory="Coordinates the game, keeping play flowing and delegating clarifications to other agents. "
+                      "If unsure about the game state or player metadata asks game_state_manager agent to provide current status. ",
             verbose=True,
+            allow_delegation=True,
             llm=llm,
         )
