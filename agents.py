@@ -52,8 +52,7 @@ class GameAgents:
         return Agent(
             role="Game Master",
             goal="Conduct the Monopoly game, prompting players and resolving actions",
-            backstory="Coordinates the game, keeping play flowing and delegating clarifications to other agents. "
-                      "If unsure about the game state or player metadata asks game_state_manager agent to provide current status. ",
+            backstory="Coordinates the game, keeping play flowing and delegating clarifications to other agents.",
             verbose=True,
             allow_delegation=True,
             llm=llm,
